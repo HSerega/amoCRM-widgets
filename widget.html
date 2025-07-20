@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Дублировать ИНН</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 10px;
+    }
+    button {
+      padding: 10px;
+      background: #4E79F9;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+    }
+    .success {
+      color: green;
+      margin-top: 10px;
+    }
+    .error {
+      color: red;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h4>Дублировать ИНН</h4>
+  <p>Копирует ИНН компании в ИНН контакта</p>
+
+  <button onclick="duplicateInn()">Дублировать ИНН</button>
+
+  <div id="result"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ @amocrm/amocrm-ui-widgets-sdk"></script>
+  <script>
+    const sdk = new AmoCRM.WidgetSdk();
+
+    async function duplicateInn() {
+      try {
+        // Инициализация SDK
+        await sdk.init();
+
+        // Получаем текущий контакт
+        const contact = await sdk.getEntity();
+        if (!contact) throw new Error('Не удалось получить данные контакта');
+
+        // Проверяем, есть ли у контакта компания
+        const companyId = contact._embedded?.companies?.[0]?.id;
+        if (!companyId) {
+          throw new Error('У контакта нет компании');
+        }
+
+        // Получаем компанию
+        const company = await sdk.api.get(`/api/v4/companies/${companyId}`);
+        if (!company) throw new Error('Не удалось получить данные компании');
+
+        // Получаем ИНН компании
+        const INN_FIELD_CODE = 'INN'; // Убедись, что поле имеет такой код
+        const innField = company.custom_fields_values?.find(
+          field => field.field_code === INN_FIELD_CODE
+        );
+
+        if (!innField || !innField.values?.[0]?.value) {
+          throw new Error('ИНН компании не найден');
+        }
+
+        const innValue = innField.values[0].value;
+
+        // Обновляем контакт: пишем ИНН в поле "ИНН" (предположим, что у него field_code = 'INN_CONTACT')
+        const updateData = {
+          custom_fields_values: [
+            {
+              field_code: 'INN_CONTACT', // Код поля "ИНН" в контакте
+              values: [{ value: innValue }]
+            }
+          ]
+        };
+
+        // Обновляем контакт в amoCRM
+        await sdk.api.patch(`/api/v4/contacts/${contact.id}`, updateData);
+
+        // Выводим результат
+        document.getElementById('result').innerHTML = `
+          <p class="success">ИНН компании <strong>${innValue}</strong> успешно скопирован в контакт.</p>
+        `;
+      } catch (e) {
+        console.error(e);
+        document.getElementById('result').innerHTML = `
+          <p class="error">Ошибка: ${e.message}</p>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>
